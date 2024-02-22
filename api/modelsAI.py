@@ -63,6 +63,9 @@ def speech_construct(segments):
         original_audio += segment
     return original_audio
 
+
+
+
 """
 source  => english speech
 target  => arabic speeech
@@ -82,10 +85,11 @@ def speech_to_speech_translation_en_ar(audio_url):
         text2textT.append(translated_text)
     target_segments=[] #contain arabic speech segments
     for text in text2textT:
-        segment=text_to_speech(text)
+        text = " ".join(text)
+        text_to_speech(text)
         target_segments.append(segment)
     target_audio=speech_construct(target_segments) 
-    return target_audio
+    
 
 
 if __name__=="__main__":

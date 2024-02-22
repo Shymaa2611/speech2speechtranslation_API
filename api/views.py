@@ -4,25 +4,25 @@ from .serializers import AudioGenerationSerializers
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework import status
-from modelsAI import speech_to_speech_translation_en_ar
+from .modelsAI import speech_to_speech_translation_en_ar
         
 
 @api_view(['GET','POST'])
 def get_audio(request):
 
     if request.method == 'GET':
-        audio=AudioGeneration.objects.all()
-        serializer = AudioGenerationSerializers(audio, many=True)
+        data=AudioGeneration.objects.all()
+        serializer = AudioGenerationSerializers(data, many=True)
         return Response(serializer.data)
 
     elif request.method == 'POST':
-        audio=request.data.get('audio')
-        target_audio=speech_to_speech_translation_en_ar(audio)
-        serializer =AudioGenerationSerializers(data=target_audio)
+        audio_url=request.data.get('audio_url')
+        serializer=AudioGeneration(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            target_audio=speech_to_speech_translation_en_ar(audio_url)
+            serializer.save(audio=target_audio)
             return Response(serializer.data, status= status.HTTP_201_CREATED)
-        return Response(serializer.data, status= status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status= status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET','PUT','DELETE'])
