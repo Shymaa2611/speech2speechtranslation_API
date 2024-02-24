@@ -19,8 +19,8 @@ def get_audio(request):
         audio_url=request.data.get('audio_url')
         serializer=AudioGeneration(data=request.data)
         if serializer.is_valid():
-            target_audio=speech_to_speech_translation_en_ar(audio_url)
-            serializer.save(audio=target_audio)
+            speech_to_speech_translation_en_ar(audio_url)
+            #serializer.save(audio=target)
             return Response(serializer.data, status= status.HTTP_201_CREATED)
         return Response(serializer.errors, status= status.HTTP_400_BAD_REQUEST)
 

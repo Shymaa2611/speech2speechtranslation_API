@@ -4,6 +4,9 @@ import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from transformers import MarianTokenizer, MarianMTModel
 import numpy as np
+import wave
+from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
 
 def split_audio_segments(audio_url, output_dir="outputSegments"):
     sound = AudioSegment.from_wav(audio_url)
@@ -54,17 +57,27 @@ def text_to_text_translation(text):
     translated_text = [tokenizer.decode(t, skip_special_tokens=True) for t in translated_tokens]
     return translated_text
 
-def text_to_speech(text):
-    pass
+def text_to_speech(text,audio):
+    preload_models()
+    audio_array = generate_audio(text, prompt=audio)
+    write_wav(f"target_dir/{audio}.wav", SAMPLE_RATE, audio_array)
 
-def speech_construct(segments):
-    original_audio = segments[0]
-    for segment in segments[1:]:
-        original_audio += segment
-    return original_audio
+def speech_construct():
+    audio_segments = []
+    folder_path="target_dir"
+    file_names = sorted(os.listdir(folder_path))  
+    for file_name in file_names:
+        if file_name.endswith(".wav"):
+            file_path = os.path.join(folder_path, file_name)
+            with wave.open(file_path, 'rb') as audio_file:
+                audio_segments.append(audio_file.readframes(audio_file.getnframes()))
+
+    target_audio = b"".join(audio_segments)
+    with open("target_audio.wav", "wb") as audio_out_file:
+         audio_out_file.write(target_audio)
 
 
-
+    
 
 """
 source  => english speech
@@ -72,23 +85,15 @@ target  => arabic speeech
 """
 def speech_to_speech_translation_en_ar(audio_url):
     output_dir = "outputSegments"
-    speech2text=[]
     segments = split_audio_segments(audio_url)
     for i, segment in enumerate(segments):
        wav_file = f"segment_{i}.wav"
        audio_url = os.path.join(output_dir, wav_file)
        en_text = speech_to_text_process(audio_url)
-       speech2text.append(en_text)
-    text2textT=[] # contain arabic text
-    for text in  speech2text:
-        translated_text=text_to_text_translation(text)
-        text2textT.append(translated_text)
-    target_segments=[] #contain arabic speech segments
-    for text in text2textT:
-        text = " ".join(text)
-        text_to_speech(text)
-        target_segments.append(segment)
-    target_audio=speech_construct(target_segments) 
+       translated_text=text_to_text_translation(en_text)
+       translated_text = " ".join(translated_text)
+       text_to_speech(translated_text,audio_url)
+    speech_construct() 
     
 
 
