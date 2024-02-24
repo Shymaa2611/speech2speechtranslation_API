@@ -7,6 +7,7 @@ import numpy as np
 import wave
 from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
 from scipy.io.wavfile import write as write_wav
+import shutil
 
 def split_audio_segments(audio_url, output_dir="outputSegments"):
     sound = AudioSegment.from_wav(audio_url)
@@ -57,24 +58,32 @@ def text_to_text_translation(text):
     translated_text = [tokenizer.decode(t, skip_special_tokens=True) for t in translated_tokens]
     return translated_text
 
-def text_to_speech(text,audio):
-    preload_models()
-    audio_array = generate_audio(text, prompt=audio)
-    write_wav(f"target_dir/{audio}.wav", SAMPLE_RATE, audio_array)
+def text_to_speech(text,audio,audio_num):
+   preload_models()
+   audio_array = generate_audio(text, prompt=audio)
+   os.makedirs("target_dir", exist_ok=True)
+   audio_path = os.path.join("target_dir", f"audio_{audio_num}.wav")
+   write_wav(audio_path, SAMPLE_RATE, audio_array)
 
 def speech_construct():
     audio_segments = []
-    folder_path="target_dir"
+    folder_path = "target_dir"
     file_names = sorted(os.listdir(folder_path))  
     for file_name in file_names:
         if file_name.endswith(".wav"):
             file_path = os.path.join(folder_path, file_name)
-            with wave.open(file_path, 'rb') as audio_file:
-                audio_segments.append(audio_file.readframes(audio_file.getnframes()))
+            audio_segment = AudioSegment.from_wav(file_path)
+            audio_segments.append(audio_segment)
 
-    target_audio = b"".join(audio_segments)
-    with open("target_audio.wav", "wb") as audio_out_file:
-         audio_out_file.write(target_audio)
+    target_audio = sum(audio_segments)
+    try:
+      shutil.rmtree(folder_path)
+      print(f"Folder '{folder_path}' removed successfully.")
+    except OSError as e:
+      print(f"Error: {folder_path} : {e.strerror}")
+    os.makedirs("target_dir", exist_ok=True)
+    output_path = os.path.join(folder_path, "target.wav")
+    target_audio.export(output_path, format="wav")
 
 
     
@@ -92,10 +101,14 @@ def speech_to_speech_translation_en_ar(audio_url):
        en_text = speech_to_text_process(audio_url)
        translated_text=text_to_text_translation(en_text)
        translated_text = " ".join(translated_text)
-       text_to_speech(translated_text,audio_url)
+       text_to_speech(translated_text,audio_url,i)
     speech_construct() 
+    try:
+      shutil.rmtree(output_dir)
+      print(f"Folder '{output_dir}' removed successfully.")
+    except OSError as e:
+      print(f"Error: {output_dir} : {e.strerror}")
     
-
 
 if __name__=="__main__":
     audio_url="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
