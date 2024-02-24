@@ -3,8 +3,6 @@ import os
 import torch
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from transformers import MarianTokenizer, MarianMTModel
-import numpy as np
-import wave
 from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
 from scipy.io.wavfile import write as write_wav
 import shutil
