@@ -103,7 +103,7 @@ if __name__=="__main__":
     #text=speech_to_text_process(audio_url)
     #segments=split_audio_segments(audio_url)
     # source text =>>>>> english
-    source_text=speech_to_text_process(audio_url)
+    speech_to_speech_translation_en_ar(audio_url)
     # target text =>>>>> arabic
     #target_text=text_to_text_translation(source_text)
 
