@@ -1,70 +1,16 @@
-from django.shortcuts import render
-""" from .models import AudioGeneration
-from .serializers import AudioGenerationSerializers
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from rest_framework import status
+from .models import AudioGeneration
+from .serializers import AudioGenerationSerializers
 from .modelsAI import speech_to_speech_translation_en_ar
-from django.core.files import File
-import os
-        
 
-@api_view(['GET','POST'])
-def audio(request):
-
-    if request.method == 'GET':
-        data=AudioGeneration.objects.all()
-        serializer = AudioGenerationSerializers(data, many=True)
-        return Response(serializer.data)
-
-    elif request.method == 'POST':
-        audio_url = request.data.get('audio_url')
-        speech_to_speech_translation_en_ar(audio_url)
-        file_path = 'target_dir/target.wav'
-        with open(file_path, 'rb') as f:
-            audio_file = File(f)
-            serializer = AudioGeneration(data={'audio': audio_file})
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET','PUT','DELETE'])
-def get_audio_pk(request, pk):
+@api_view(['GET'])
+def get_audio(request):
+    audio_url = request.GET.get('audio_url')
     try:
-        audio= AudioGeneration.objects.get(pk=pk)
-    except AudioGeneration.DoesNotExists:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    if request.method == 'GET':
-        serializer = AudioGenerationSerializers(audio)
+        speech_to_speech_translation_en_ar(audio_url)
+        audio_generation = AudioGeneration.objects.filter(audio=audio_url).first()
+        serializer =AudioGenerationSerializers(audio_generation)
         return Response(serializer.data)
-        
-    elif request.method == 'PUT':
-        serializer = AudioGenerationSerializers(audio, data= request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status= status.HTTP_400_BAD_REQUEST)
-    if request.method == 'DELETE':
-        audio.delete()
-        return Response(status= status.HTTP_204_NO_CONTENT)
-  """
-
-""" from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from .modelsAI import split_audio_segments
-@api_view(['get'])
-def split_audio_segments_api(request):
-        audio_url ="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
-        if audio_url:
-            split_audio_segments(audio_url)
-            return Response({"message": "Audio segments processed successfully."})
-        else:
-            return Response({"error": "Missing 'audio_url' parameter."}, status=400)
- """
-from .modelsAI import split_audio_segments,convert_segment_to_speech
-audio_path="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
-split_audio_segments(audio_path)
-convert_segment_to_speech()
-print("Done!") 
+    except AudioGeneration.DoesNotExist:
+        return Response(status=404)

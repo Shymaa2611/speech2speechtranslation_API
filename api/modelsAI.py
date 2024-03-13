@@ -3,22 +3,17 @@ import os
 import torch
 from django.core.files import File
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-#from transformers import MarianTokenizer, MarianMTModel
-#from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
-#from scipy.io.wavfile import write as write_wav
-#import shutil
+from transformers import MarianTokenizer, MarianMTModel
+from vallex.utils.generation import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
+import shutil
 from pyannote.audio import Model
 from pyannote.audio.pipelines import VoiceActivityDetection
-from .models import Audio_segment
+from .models import Audio_segment,AudioGeneration
 from django.core.files.base import ContentFile
+from io import BytesIO
 
-speech_regions=[{'start': 0, 'end': 14.456706281833617},
- {'start': 24.69439728353141, 'end': 31.6044142614601},
- {'start': 42.50424448217318, 'end': 42.89473684210526},]
 
-non_speech=speech_regions=[{'start': 0, 'end': 14.456706281833617},
- {'start': 24.69439728353141, 'end': 31.6044142614601},
- {'start': 42.50424448217318, 'end': 42.89473684210526},]
 
 def audio_speech_nonspeech_detection(audio_url):
     model = Model.from_pretrained(
@@ -116,7 +111,7 @@ def speech_to_text_process(segment):
     result = pipe(segment)
     return result["text"]
 
-def convert_segment_to_speech():
+""" def convert_segment_to_speech():
     speech_segments = Audio_segment.objects.filter(type="speech")
     texts = []
     for segment in speech_segments:
@@ -124,9 +119,9 @@ def convert_segment_to_speech():
         text = speech_to_text_process(audio_data)
         texts.append(text)
     
-    print(texts)
+    return texts
+ """
 
-""""
 def text_to_text_translation(text):
     mname = "marefa-nlp/marefa-mt-en-ar"
     tokenizer = MarianTokenizer.from_pretrained(mname)
@@ -135,69 +130,37 @@ def text_to_text_translation(text):
     translated_text = [tokenizer.decode(t, skip_special_tokens=True) for t in translated_tokens]
     return translated_text
 
-def text_to_speech(text,audio,audio_num):
-   preload_models()
-   audio_array = generate_audio(text, prompt=audio)
-   os.makedirs("target_dir", exist_ok=True)
-   audio_path = os.path.join("target_dir", f"audio_{audio_num}.wav")
-   write_wav(audio_path, SAMPLE_RATE, audio_array)
-
-def speech_construct():
-    audio_segments = []
-    folder_path = "target_dir"
-    file_names = sorted(os.listdir(folder_path))  
-    for file_name in file_names:
-        if file_name.endswith(".wav"):
-            file_path = os.path.join(folder_path, file_name)
-            audio_segment = AudioSegment.from_wav(file_path)
-            audio_segments.append(audio_segment)
-
-    target_audio = sum(audio_segments)
-    try:
-      shutil.rmtree(folder_path)
-      print(f"Folder '{folder_path}' removed successfully.")
-    except OSError as e:
-      print(f"Error: {folder_path} : {e.strerror}")
-    os.makedirs("target_dir", exist_ok=True)
-    output_path = os.path.join(folder_path, "target.wav")
-    target_audio.export(output_path, format="wav")
+def text_to_speech(segment_id,target_text, audio_prompt):
+    preload_models()
+    segment = Audio_segment.objects.get(id=segment_id)
+    audio_array = generate_audio(target_text,audio_prompt)
+    segment.audio.delete(save=False)
+    audio_data = BytesIO(audio_array.tobytes())
+    segment.audio.save(f"new_audio_{segment_id}.wav", File(audio_data))
 
 
-    
-
+def construct_audio():
+    segments = Audio_segment.objects.all().order_by('start_time')
+    audio_files = [AudioSegment.from_file(segment.audio.path) for segment in segments]
+    target_audio = sum(audio_files)
+    target_audio_path = "target_audio.wav"
+    target_audio.export(target_audio_path, format="wav")
+    audio_generation = AudioGeneration.objects.create(audio=target_audio_path)
+    Audio_segment.objects.all().delete()
 
 #source  => english speech
 #target  => arabic speeech
-
 def speech_to_speech_translation_en_ar(audio_url):
-    output_dir = "outputSegment"
-    segments = split_audio_segments(audio_url)
-    for i, segment in enumerate(segments):
-       wav_file = f"segment_{i}.wav"
-       audio_url = os.path.join(output_dir, wav_file)
-       en_text = speech_to_text_process(audio_url)
-       translated_text=text_to_text_translation(en_text)
-       translated_text = " ".join(translated_text)
-       text_to_speech(translated_text,audio_url,i)
-    speech_construct() 
-    try:
-      shutil.rmtree(output_dir)
-      print(f"Folder '{output_dir}' removed successfully.")
-    except OSError as e:
-      print(f"Error: {output_dir} : {e.strerror}")
-    
-"""
-    
+    split_audio_segments(audio_url)
+    speech_segments = Audio_segment.objects.filter(type="speech")
+    for segment in speech_segments:
+        audio_data = segment.audio.read()
+        text = speech_to_text_process(audio_data)
+        target_text=text_to_text_translation(text)
+        segment_id = segment.id
+        audio_file_path = segment.audio.path
+        text_to_speech(segment_id,target_text,audio_file_path)
 
-#if __name__=="__main__":
-#    audio_url="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
-    #segments=split_audio_segments(audio_url)
-    #text=speech_to_text_process(audio_url)
-    #segments=split_audio_segments(audio_url)
-    # source text =>>>>> english
-    #speech_to_speech_translation_en_ar(audio_url)
-    # target text =>>>>> arabic
-    #target_text=text_to_text_translation(source_text)
-  #  split_audio_segments(audio_url)
+    construct_audio()
+   
 
-    

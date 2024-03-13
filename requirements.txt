@@ -28,6 +28,6 @@ sudachidict_core
 vocos
 transformers
 accelerate
--f 'https://synesthesiam.github.io/prebuilt-apps/' gruut[ar]
 pyannote.audio
 onnxruntime
+git clone https://github.com/Plachtaa/VALL-E-X.git
