@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import AudioGeneration
+""" from .models import AudioGeneration
 from .serializers import AudioGenerationSerializers
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
@@ -30,7 +30,7 @@ def audio(request):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-""" @api_view(['GET','PUT','DELETE'])
+@api_view(['GET','PUT','DELETE'])
 def get_audio_pk(request, pk):
     try:
         audio= AudioGeneration.objects.get(pk=pk)
@@ -49,18 +49,21 @@ def get_audio_pk(request, pk):
     if request.method == 'DELETE':
         audio.delete()
         return Response(status= status.HTTP_204_NO_CONTENT)
+  """
 
+""" from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .modelsAI import split_audio_segments
+@api_view(['get'])
+def split_audio_segments_api(request):
+        audio_url ="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
+        if audio_url:
+            split_audio_segments(audio_url)
+            return Response({"message": "Audio segments processed successfully."})
+        else:
+            return Response({"error": "Missing 'audio_url' parameter."}, status=400)
  """
-
-
-
-
-
-
-
-
-
-
-
-
- 
+from .modelsAI import split_audio_segments
+audio_path="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
+split_audio_segments(audio_path)
+print("Done!")

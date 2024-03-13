@@ -1,30 +1,79 @@
 from pydub import AudioSegment
 import os
 import torch
-from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-from transformers import MarianTokenizer, MarianMTModel
-from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
-from scipy.io.wavfile import write as write_wav
-import shutil
+#from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+#from transformers import MarianTokenizer, MarianMTModel
+#from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
+#from scipy.io.wavfile import write as write_wav
+#import shutil
+from pyannote.audio import Model
+from pyannote.audio.pipelines import VoiceActivityDetection
+from .models import Audio_segment
+from django.core.files.base import ContentFile
 
-def split_audio_segments(audio_url, output_dir="outputSegments"):
+
+def audio_speech_nonspeech_detection(audio_url):
+    model = Model.from_pretrained(
+     "pyannote/segmentation-3.0", 
+      use_auth_token="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")
+    pipeline = VoiceActivityDetection(segmentation=model)
+    HYPER_PARAMETERS = {
+      "min_duration_on": 0.0,
+      "min_duration_off": 0.0
+     }
+    pipeline.instantiate(HYPER_PARAMETERS)
+    vad = pipeline(audio_url)
+    speaker_regions=[]
+    for turn, _,speaker in vad.itertracks(yield_label=True):
+         speaker_regions.append({"start":turn.start,"end":turn.end})
     sound = AudioSegment.from_wav(audio_url)
-    segment_duration = 15*1000
-    total_segments = len(sound) // segment_duration
-    
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    segments = []
-    for i in range(total_segments+1):
-        start_time = i * segment_duration
-        end_time = (i + 1) * segment_duration
-        segment = sound[start_time:end_time]
-        segments.append(segment)
-        segment.export(os.path.join(output_dir, f"segment_{i}.wav"), format="wav")
-    
-    return segments
+    speaker_regions.sort(key=lambda x: x['start'])
+    non_speech_regions = []
+    for i in range(1, len(speaker_regions)):
+        start = speaker_regions[i-1]['end'] 
+        end = speaker_regions[i]['start']   
+        if end > start:
+            non_speech_regions.append({'start': start, 'end': end})
+    first_speech_start = speaker_regions[0]['start']
+    if first_speech_start > 0:
+          non_speech_regions.insert(0, {'start': 0, 'end': first_speech_start})
+    last_speech_end = speaker_regions[-1]['end']
+    total_audio_duration = len(sound)  
+    if last_speech_end < total_audio_duration:
+            non_speech_regions.append({'start': last_speech_end, 'end': total_audio_duration})
+    return speaker_regions,non_speech_regions
 
+
+
+def split_audio_segments(audio_url):
+    sound = AudioSegment.from_wav(audio_url)
+    speech_segments, non_speech_segment= audio_speech_nonspeech_detection(audio_url)
+    #process speech segment
+    for i in range(len(speech_segments)):
+        start = int(speech_segments[i]['start'] * 1000)  
+        end = int(speech_segments[i]['end'] * 1000)  
+        segment = sound[start:end]
+        audio_segment=Audio_segment(
+            start_time=start/1000,
+            end_time=end/1000,
+            type="speech"
+        )
+        audio_segment.audio.save(f"speech_{i}.wav",ContentFile(segment.export(format="wav", codec="wav").read()))
+        audio_segment.save()
+    #Process non-speech segments 
+    for i in range(len(non_speech_segment)):
+        start = int(speech_segments[i]['start'] * 1000)  
+        end = int(speech_segments[i]['end'] * 1000)  
+        segment = sound[start:end]
+        audio_segment=Audio_segment(
+           start_time=start/1000,
+           end_time=end/1000,
+        )
+        audio_segment.audio.save(f"non-speech_{i}.wav",ContentFile(segment.export(format="wav", codec="wav").read()))
+        audio_segment.save()
+    
+
+"""
 def speech_to_text_process(segment):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
@@ -86,12 +135,12 @@ def speech_construct():
 
     
 
-"""
-source  => english speech
-target  => arabic speeech
-"""
+
+#source  => english speech
+#target  => arabic speeech
+
 def speech_to_speech_translation_en_ar(audio_url):
-    output_dir = "outputSegments"
+    output_dir = "outputSegment"
     segments = split_audio_segments(audio_url)
     for i, segment in enumerate(segments):
        wav_file = f"segment_{i}.wav"
@@ -107,15 +156,18 @@ def speech_to_speech_translation_en_ar(audio_url):
     except OSError as e:
       print(f"Error: {output_dir} : {e.strerror}")
     
+"""
+    
 
-if __name__=="__main__":
-    audio_url="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
+#if __name__=="__main__":
+#    audio_url="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
     #segments=split_audio_segments(audio_url)
     #text=speech_to_text_process(audio_url)
     #segments=split_audio_segments(audio_url)
     # source text =>>>>> english
-    speech_to_speech_translation_en_ar(audio_url)
+    #speech_to_speech_translation_en_ar(audio_url)
     # target text =>>>>> arabic
     #target_text=text_to_text_translation(source_text)
+  #  split_audio_segments(audio_url)
 
     

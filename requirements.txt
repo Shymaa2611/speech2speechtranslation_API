@@ -29,3 +29,5 @@ vocos
 transformers
 accelerate
 -f 'https://synesthesiam.github.io/prebuilt-apps/' gruut[ar]
+pyannote.audio
+onnxruntime
