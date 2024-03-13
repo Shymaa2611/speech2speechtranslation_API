@@ -63,7 +63,8 @@ def split_audio_segments_api(request):
         else:
             return Response({"error": "Missing 'audio_url' parameter."}, status=400)
  """
-from .modelsAI import split_audio_segments
+from .modelsAI import split_audio_segments,convert_segment_to_speech
 audio_path="C:\\Users\\dell\\Downloads\\Music\\audio.wav"
 split_audio_segments(audio_path)
-print("Done!")
+convert_segment_to_speech()
+print("Done!") 

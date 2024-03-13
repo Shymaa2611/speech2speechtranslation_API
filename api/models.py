@@ -10,6 +10,7 @@ class Audio_segment(models.Model):
     end_time=models.FloatField()
     type=models.CharField(max_length=50,default="non-speech")
     audio=models.FileField(upload_to='segments/',blank=True,null=True)
+    #content=models.CharField(max_length=500,blank=True,null=True)
     class Meta:
         ordering = ['start_time']
 

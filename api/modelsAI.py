@@ -1,7 +1,8 @@
 from pydub import AudioSegment
 import os
 import torch
-#from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+from django.core.files import File
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 #from transformers import MarianTokenizer, MarianMTModel
 #from model.utils.generation import SAMPLE_RATE, generate_audio, preload_models
 #from scipy.io.wavfile import write as write_wav
@@ -11,6 +12,13 @@ from pyannote.audio.pipelines import VoiceActivityDetection
 from .models import Audio_segment
 from django.core.files.base import ContentFile
 
+speech_regions=[{'start': 0, 'end': 14.456706281833617},
+ {'start': 24.69439728353141, 'end': 31.6044142614601},
+ {'start': 42.50424448217318, 'end': 42.89473684210526},]
+
+non_speech=speech_regions=[{'start': 0, 'end': 14.456706281833617},
+ {'start': 24.69439728353141, 'end': 31.6044142614601},
+ {'start': 42.50424448217318, 'end': 42.89473684210526},]
 
 def audio_speech_nonspeech_detection(audio_url):
     model = Model.from_pretrained(
@@ -43,37 +51,48 @@ def audio_speech_nonspeech_detection(audio_url):
             non_speech_regions.append({'start': last_speech_end, 'end': total_audio_duration})
     return speaker_regions,non_speech_regions
 
-
-
+ 
 def split_audio_segments(audio_url):
     sound = AudioSegment.from_wav(audio_url)
-    speech_segments, non_speech_segment= audio_speech_nonspeech_detection(audio_url)
-    #process speech segment
-    for i in range(len(speech_segments)):
-        start = int(speech_segments[i]['start'] * 1000)  
-        end = int(speech_segments[i]['end'] * 1000)  
+    speech_segments, non_speech_segment = audio_speech_nonspeech_detection(audio_url)
+    
+    # Process speech segments
+    for i, speech_segment in enumerate(speech_segments):
+        start = int(speech_segment['start'] * 1000)  
+        end = int(speech_segment['end'] * 1000)  
         segment = sound[start:end]
-        audio_segment=Audio_segment(
+        audio_segment = Audio_segment(
             start_time=start/1000,
             end_time=end/1000,
             type="speech"
         )
-        audio_segment.audio.save(f"speech_{i}.wav",ContentFile(segment.export(format="wav", codec="wav").read()))
-        audio_segment.save()
-    #Process non-speech segments 
-    for i in range(len(non_speech_segment)):
-        start = int(speech_segments[i]['start'] * 1000)  
-        end = int(speech_segments[i]['end'] * 1000)  
-        segment = sound[start:end]
-        audio_segment=Audio_segment(
-           start_time=start/1000,
-           end_time=end/1000,
-        )
-        audio_segment.audio.save(f"non-speech_{i}.wav",ContentFile(segment.export(format="wav", codec="wav").read()))
+        temp_file_path = f"temp_segment_{i}.wav"
+        segment.export(temp_file_path, format="wav")
+        with open(temp_file_path, "rb") as f:
+            audio_segment.audio.save(f"speech_{i}.wav", File(f))
+    
+        os.remove(temp_file_path)
         audio_segment.save()
     
+    # Process non-speech segments 
+    for i, non_speech_segment in enumerate(non_speech_segment):
+        start = int(non_speech_segment['start'] * 1000)  
+        end = int(non_speech_segment['end'] * 1000)  
+        segment = sound[start:end]
+        audio_segment = Audio_segment(
+            start_time=start/1000,
+            end_time=end/1000,
+        )
+        temp_file_path = f"temp_segment_{i}.wav"
+        segment.export(temp_file_path, format="wav")
+        with open(temp_file_path, "rb") as f:
+            audio_segment.audio.save(f"non_speech_{i}.wav", File(f))
+        os.remove(temp_file_path)
+        audio_segment.save()
 
-"""
+
+
+
 def speech_to_text_process(segment):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
@@ -97,6 +116,17 @@ def speech_to_text_process(segment):
     result = pipe(segment)
     return result["text"]
 
+def convert_segment_to_speech():
+    speech_segments = Audio_segment.objects.filter(type="speech")
+    texts = []
+    for segment in speech_segments:
+        audio_data = segment.audio.read()
+        text = speech_to_text_process(audio_data)
+        texts.append(text)
+    
+    print(texts)
+
+""""
 def text_to_text_translation(text):
     mname = "marefa-nlp/marefa-mt-en-ar"
     tokenizer = MarianTokenizer.from_pretrained(mname)
