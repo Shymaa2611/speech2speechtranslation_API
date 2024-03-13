@@ -85,9 +85,6 @@ def split_audio_segments(audio_url):
         os.remove(temp_file_path)
         audio_segment.save()
 
-
-
-
 def speech_to_text_process(segment):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
