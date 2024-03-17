@@ -14,3 +14,6 @@ def get_audio(request):
         return Response(serializer.data)
     except AudioGeneration.DoesNotExist:
         return Response(status=404)
+
+#audio_url=""
+#speech_to_speech_translation_en_ar(audio_url)

@@ -30,4 +30,4 @@ transformers
 accelerate
 pyannote.audio
 onnxruntime
-git clone https://github.com/Plachtaa/VALL-E-X.git
+

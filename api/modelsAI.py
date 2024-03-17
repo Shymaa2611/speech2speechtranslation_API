@@ -4,17 +4,20 @@ import torch
 from django.core.files import File
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from transformers import MarianTokenizer, MarianMTModel
-from vallex.utils.generation import SAMPLE_RATE, generate_audio, preload_models
+from utils.generation import SAMPLE_RATE, generate_audio, preload_models
 from scipy.io.wavfile import write as write_wav
+from utils.prompt_making import make_prompt
 import shutil
 from pyannote.audio import Model
 from pyannote.audio.pipelines import VoiceActivityDetection
 from .models import Audio_segment,AudioGeneration
 from django.core.files.base import ContentFile
 from io import BytesIO
+import soundfile as sf
 
-
-
+"""
+audio segmentation into speech and non-speech using pyannote segmentation model
+"""
 def audio_speech_nonspeech_detection(audio_url):
     model = Model.from_pretrained(
      "pyannote/segmentation-3.0", 
@@ -46,11 +49,12 @@ def audio_speech_nonspeech_detection(audio_url):
             non_speech_regions.append({'start': last_speech_end, 'end': total_audio_duration})
     return speaker_regions,non_speech_regions
 
- 
+"""
+save speech and non-speech segments in database 
+"""
 def split_audio_segments(audio_url):
     sound = AudioSegment.from_wav(audio_url)
     speech_segments, non_speech_segment = audio_speech_nonspeech_detection(audio_url)
-    
     # Process speech segments
     for i, speech_segment in enumerate(speech_segments):
         start = int(speech_segment['start'] * 1000)  
@@ -85,6 +89,7 @@ def split_audio_segments(audio_url):
         os.remove(temp_file_path)
         audio_segment.save()
 
+# whisper model for speech to text process
 def speech_to_text_process(segment):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
@@ -119,34 +124,47 @@ def speech_to_text_process(segment):
     return texts
  """
 
+#translate english speech into arabic speech using marefa model
 def text_to_text_translation(text):
     mname = "marefa-nlp/marefa-mt-en-ar"
     tokenizer = MarianTokenizer.from_pretrained(mname)
     model = MarianMTModel.from_pretrained(mname)
     translated_tokens = model.generate(**tokenizer.prepare_seq2seq_batch([text], return_tensors="pt"))
     translated_text = [tokenizer.decode(t, skip_special_tokens=True) for t in translated_tokens]
+    translated_text=" ".join(translated_text)
     return translated_text
 
-def text_to_speech(segment_id,target_text, audio_prompt):
+def make_prompt_audio(name,audio_path):
+    make_prompt(name=name, audio_prompt_path=audio_path)
+
+
+"""
+there is problem in taken audio_prompt as input
+"""
+def text_to_speech(segment_id, target_text, audio_prompt):
     preload_models()
     segment = Audio_segment.objects.get(id=segment_id)
-    audio_array = generate_audio(target_text,audio_prompt)
-    segment.audio.delete(save=False)
-    audio_data = BytesIO(audio_array.tobytes())
-    segment.audio.save(f"new_audio_{segment_id}.wav", File(audio_data))
-
+    make_prompt_audio(name=segment_id,audio_path=audio_prompt)
+    audio_array = generate_audio(target_text,segment_id)
+    temp_file = f"new_audio_{segment_id}.wav"
+    sf.write(temp_file, audio_array, SAMPLE_RATE)  
+    with open(temp_file, "rb") as f:
+        segment.audio.save(f.name, File(f), save=False)
+    os.remove(temp_file)
 
 def construct_audio():
     segments = Audio_segment.objects.all().order_by('start_time')
     audio_files = [AudioSegment.from_file(segment.audio.path) for segment in segments]
-    target_audio = sum(audio_files)
+    target_audio = sum(audio_files,AudioSegment.empty())
     target_audio_path = "target_audio.wav"
     target_audio.export(target_audio_path, format="wav")
     audio_generation = AudioGeneration.objects.create(audio=target_audio_path)
     Audio_segment.objects.all().delete()
 
-#source  => english speech
-#target  => arabic speeech
+"""
+source  => english speech
+target  => arabic speeech
+"""
 def speech_to_speech_translation_en_ar(audio_url):
     split_audio_segments(audio_url)
     speech_segments = Audio_segment.objects.filter(type="speech")
