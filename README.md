@@ -14,6 +14,10 @@
 
 ![S2ST](model.jpg)
 
+##Framework 
+- Django
+- Restful API Framework
+
 ### Running
 
   
